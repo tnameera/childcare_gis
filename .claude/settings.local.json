@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /Users/syedrahman/.claude -type f \\\\\\( -name \"*.json\" -o -name \"*.md\" -o -name \"*.txt\" \\\\\\) -exec grep -l \"keybinding\\\\|action\" {} \\\\;)",
+      "Bash(grep -v \"^$\")",
+      "Skill(keybindings-help)",
+      "Bash(python:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
+    ]
+  }
+}
