@@ -107,15 +107,15 @@ xi, yi = np.mgrid[lon_min:lon_max:400j, lat_min:lat_max:400j]
 zi = kde(np.vstack([xi.ravel(), yi.ravel()])).reshape(xi.shape)
 
 fig, ax = plt.subplots(figsize=(12, 10))
-contour = ax.contourf(xi, yi, zi, levels=25, cmap="YlOrRd", alpha=0.72)
+contour = ax.contourf(xi, yi, zi, levels=25, cmap="YlOrRd", alpha=0.65, zorder=2)
 cbar = plt.colorbar(contour, ax=ax, shrink=0.7, pad=0.02)
 cbar.set_label("Relative Density", fontsize=11)
-childcare_4326.plot(ax=ax, color="black", markersize=2, alpha=0.25, zorder=5)
+childcare_4326.plot(ax=ax, color="black", markersize=2, alpha=0.25, zorder=3)
 
+ctx.add_basemap(ax, crs="EPSG:4326", source=ctx.providers.CartoDB.Positron, zoom=11, zorder=1)
 ax.set_title("Childcare Center Density Heatmap — Seattle Area",
              fontsize=15, fontweight="bold", pad=12)
-ax.set_xlabel("Longitude", fontsize=11)
-ax.set_ylabel("Latitude", fontsize=11)
+ax.set_axis_off()
 plt.tight_layout()
 out2 = "map_heatmap.png"
 plt.savefig(out2, dpi=150, bbox_inches="tight")
