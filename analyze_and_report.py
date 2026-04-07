@@ -99,20 +99,33 @@ lons = childcare_4326.geometry.x.values
 lats = childcare_4326.geometry.y.values
 
 xy = np.vstack([lons, lats])
-kde = gaussian_kde(xy, bw_method=0.04)
+# Higher bandwidth = smoother, broader regions (easier to read)
+kde = gaussian_kde(xy, bw_method=0.08)
 
 lon_min, lon_max = lons.min() - 0.04, lons.max() + 0.04
 lat_min, lat_max = lats.min() - 0.04, lats.max() + 0.04
-xi, yi = np.mgrid[lon_min:lon_max:400j, lat_min:lat_max:400j]
+xi, yi = np.mgrid[lon_min:lon_max:500j, lat_min:lat_max:500j]
 zi = kde(np.vstack([xi.ravel(), yi.ravel()])).reshape(xi.shape)
 
-fig, ax = plt.subplots(figsize=(12, 10))
-contour = ax.contourf(xi, yi, zi, levels=25, cmap="YlOrRd", alpha=0.65, zorder=2)
-cbar = plt.colorbar(contour, ax=ax, shrink=0.7, pad=0.02)
-cbar.set_label("Relative Density", fontsize=11)
-childcare_4326.plot(ax=ax, color="black", markersize=2, alpha=0.25, zorder=3)
+# Mask near-zero values so basemap shows through in sparse areas
+zi_masked = np.ma.masked_where(zi < zi.max() * 0.05, zi)
 
+# Custom colormap: transparent at low end, opaque red at high end
+cmap = plt.cm.YlOrRd
+cmap.set_bad(alpha=0)  # masked = transparent
+
+fig, ax = plt.subplots(figsize=(12, 10))
 ctx.add_basemap(ax, crs="EPSG:4326", source=ctx.providers.CartoDB.Positron, zoom=11, zorder=1)
+
+img = ax.pcolormesh(xi, yi, zi_masked, cmap=cmap, alpha=0.75,
+                    shading="auto", zorder=2,
+                    vmin=zi.max() * 0.05, vmax=zi.max())
+cbar = plt.colorbar(img, ax=ax, shrink=0.65, pad=0.02)
+cbar.set_label("Childcare Density", fontsize=11)
+cbar.set_ticks([])
+
+childcare_4326.plot(ax=ax, color="white", markersize=3, alpha=0.4, zorder=3)
+
 ax.set_title("Childcare Center Density Heatmap — Seattle Area",
              fontsize=15, fontweight="bold", pad=12)
 ax.set_axis_off()
