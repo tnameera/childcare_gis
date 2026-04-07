@@ -108,21 +108,59 @@ xi, yi = np.mgrid[lon_min:lon_max:500j, lat_min:lat_max:500j]
 zi = kde(np.vstack([xi.ravel(), yi.ravel()])).reshape(xi.shape)
 
 # Mask near-zero values so basemap shows through in sparse areas
-fig, ax = plt.subplots(figsize=(12, 10))
+fig, ax = plt.subplots(figsize=(13, 11))
 ctx.add_basemap(ax, crs="EPSG:4326", source=ctx.providers.CartoDB.Positron, zoom=11, zorder=1)
 
 # Only draw contours above 5% of peak so basemap shows through in sparse areas
 threshold = zi.max() * 0.05
 levels = np.linspace(threshold, zi.max(), 20)
 contour = ax.contourf(xi, yi, zi, levels=levels, cmap="YlOrRd", alpha=0.75, zorder=2)
-cbar = plt.colorbar(contour, ax=ax, shrink=0.65, pad=0.02)
-cbar.set_label("Childcare Density (low → high)", fontsize=11)
-cbar.set_ticks([])
+
+cbar = plt.colorbar(contour, ax=ax, shrink=0.55, pad=0.02)
+cbar.set_ticks([levels[0], levels[-1]])
+cbar.set_ticklabels(["Lower density", "Higher density"])
+cbar.ax.tick_params(labelsize=10)
+cbar.ax.tick_params(length=0)
 
 childcare_4326.plot(ax=ax, color="black", markersize=3, alpha=0.35, zorder=3)
 
-ax.set_title("Childcare Center Density Heatmap — Seattle Area",
-             fontsize=15, fontweight="bold", pad=12)
+# Lock extent before adding annotations so they don't resize the canvas
+ax.set_xlim(lon_min, lon_max)
+ax.set_ylim(lat_min, lat_max)
+
+# Neighborhood labels at known hotspot coordinates
+LABELS = [
+    (-122.335,  47.610, "Downtown\nSeattle"),
+    (-122.337,  47.627, "South Lake\nUnion"),
+    (-122.303,  47.655, "University\nDistrict"),
+    (-122.357,  47.668, "Ballard"),
+    (-122.304,  47.734, "Shoreline /\nKenmore"),
+    (-122.201,  47.610, "Bellevue"),
+    (-122.122,  47.674, "Redmond"),
+    (-122.217,  47.480, "Renton"),
+    (-122.346,  47.686, "Northgate"),
+    (-122.330,  47.578, "SoDo /\nGeorgetown"),
+]
+
+for lon, lat, name in LABELS:
+    # only label if inside our plot extent and density exists nearby
+    ax.annotate(
+        name,
+        xy=(lon, lat),
+        fontsize=7.5,
+        color="#1a1a2e",
+        fontweight="bold",
+        ha="center",
+        bbox=dict(boxstyle="round,pad=0.25", fc="white", alpha=0.6, ec="none"),
+        zorder=5,
+    )
+
+ax.set_title("Childcare Center Density — Seattle Area",
+             fontsize=15, fontweight="bold", pad=10)
+ax.text(0.5, 0.985,
+        "Dark orange = many centers clustered nearby · Pale = few or none · Dots = individual centers",
+        transform=ax.transAxes, ha="center", va="top",
+        fontsize=9, color="#555", style="italic")
 ax.set_axis_off()
 plt.tight_layout()
 out2 = "map_heatmap.png"
