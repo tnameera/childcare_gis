@@ -95,70 +95,69 @@ print(f"  Saved {out1}")
 # ════════════════════════════════════════════════════════════════════════════
 
 print("\n[2/3] Childcare density heatmap…")
-lons = childcare_4326.geometry.x.values
-lats = childcare_4326.geometry.y.values
+# Use Web Mercator (EPSG:3857) throughout — same CRS contextily uses natively
+from pyproj import Transformer
+_t = Transformer.from_crs("EPSG:4326", "EPSG:3857", always_xy=True)
 
-xy = np.vstack([lons, lats])
-# Higher bandwidth = smoother, broader regions (easier to read)
-kde = gaussian_kde(xy, bw_method=0.08)
+xs = childcare.geometry.x.values
+ys = childcare.geometry.y.values
 
-lon_min, lon_max = lons.min() - 0.04, lons.max() + 0.04
-lat_min, lat_max = lats.min() - 0.04, lats.max() + 0.04
-xi, yi = np.mgrid[lon_min:lon_max:500j, lat_min:lat_max:500j]
-zi = kde(np.vstack([xi.ravel(), yi.ravel()])).reshape(xi.shape)
+# Normalise to avoid numerical issues in KDE
+xs_n = (xs - xs.mean()) / xs.std()
+ys_n = (ys - ys.mean()) / ys.std()
+kde = gaussian_kde(np.vstack([xs_n, ys_n]), bw_method=0.15)
 
-# Mask near-zero values so basemap shows through in sparse areas
-fig, ax = plt.subplots(figsize=(13, 11))
-ctx.add_basemap(ax, crs="EPSG:4326", source=ctx.providers.CartoDB.Positron, zoom=11, zorder=1)
+pad = 8000  # metres
+x_min, x_max = xs.min() - pad, xs.max() + pad
+y_min, y_max = ys.min() - pad, ys.max() + pad
+xi_m, yi_m = np.mgrid[x_min:x_max:400j, y_min:y_max:400j]
+xi_n = (xi_m - xs.mean()) / xs.std()
+yi_n = (yi_m - ys.mean()) / ys.std()
+zi = kde(np.vstack([xi_n.ravel(), yi_n.ravel()])).reshape(xi_m.shape)
 
-# Only draw contours above 5% of peak so basemap shows through in sparse areas
 threshold = zi.max() * 0.05
 levels = np.linspace(threshold, zi.max(), 20)
-contour = ax.contourf(xi, yi, zi, levels=levels, cmap="YlOrRd", alpha=0.75, zorder=2)
+
+fig, ax = plt.subplots(figsize=(13, 11))
+# Set axis limits BEFORE adding basemap so contextily fetches the right tiles
+ax.set_xlim(x_min, x_max)
+ax.set_ylim(y_min, y_max)
+ctx.add_basemap(ax, source=ctx.providers.CartoDB.Positron, zoom=11, zorder=1)
+
+contour = ax.contourf(xi_m, yi_m, zi, levels=levels,
+                      cmap="YlOrRd", alpha=0.72, zorder=2)
 
 cbar = plt.colorbar(contour, ax=ax, shrink=0.55, pad=0.02)
 cbar.set_ticks([levels[0], levels[-1]])
 cbar.set_ticklabels(["Lower density", "Higher density"])
-cbar.ax.tick_params(labelsize=10)
-cbar.ax.tick_params(length=0)
+cbar.ax.tick_params(labelsize=10, length=0)
 
-childcare_4326.plot(ax=ax, color="black", markersize=3, alpha=0.35, zorder=3)
+childcare.plot(ax=ax, color="black", markersize=3, alpha=0.35, zorder=3)
 
-# Lock extent before adding annotations so they don't resize the canvas
-ax.set_xlim(lon_min, lon_max)
-ax.set_ylim(lat_min, lat_max)
-
-# Neighborhood labels at known hotspot coordinates
+# Neighbourhood labels (convert from WGS84 → Web Mercator)
 LABELS = [
-    (-122.335,  47.610, "Downtown\nSeattle"),
-    (-122.337,  47.627, "South Lake\nUnion"),
-    (-122.303,  47.655, "University\nDistrict"),
-    (-122.357,  47.668, "Ballard"),
-    (-122.304,  47.734, "Shoreline /\nKenmore"),
-    (-122.201,  47.610, "Bellevue"),
-    (-122.122,  47.674, "Redmond"),
-    (-122.217,  47.480, "Renton"),
-    (-122.346,  47.686, "Northgate"),
-    (-122.330,  47.578, "SoDo /\nGeorgetown"),
+    (-122.335, 47.610, "Downtown Seattle"),
+    (-122.337, 47.627, "South Lake Union"),
+    (-122.303, 47.655, "University District"),
+    (-122.357, 47.668, "Ballard"),
+    (-122.304, 47.734, "Shoreline / Kenmore"),
+    (-122.201, 47.610, "Bellevue"),
+    (-122.122, 47.674, "Redmond"),
+    (-122.217, 47.480, "Renton"),
+    (-122.346, 47.686, "Northgate"),
+    (-122.330, 47.578, "SoDo / Georgetown"),
 ]
-
 for lon, lat, name in LABELS:
-    # only label if inside our plot extent and density exists nearby
-    ax.annotate(
-        name,
-        xy=(lon, lat),
-        fontsize=7.5,
-        color="#1a1a2e",
-        fontweight="bold",
-        ha="center",
-        bbox=dict(boxstyle="round,pad=0.25", fc="white", alpha=0.6, ec="none"),
-        zorder=5,
-    )
+    mx, my = _t.transform(lon, lat)
+    if x_min < mx < x_max and y_min < my < y_max:
+        ax.annotate(name, xy=(mx, my), fontsize=8, color="#1a1a2e",
+                    fontweight="bold", ha="center", va="center", zorder=5,
+                    bbox=dict(boxstyle="round,pad=0.3", fc="white", alpha=0.7, ec="none"))
 
 ax.set_title("Childcare Center Density — Seattle Area",
              fontsize=15, fontweight="bold", pad=10)
-ax.text(0.5, 0.985,
-        "Dark orange = many centers clustered nearby · Pale = few or none · Dots = individual centers",
+ax.text(0.5, 0.98,
+        "Dark orange = many centers nearby  ·  No color = few or none  ·  Dots = individual centers",
         transform=ax.transAxes, ha="center", va="top",
         fontsize=9, color="#555", style="italic")
 ax.set_axis_off()
